@@ -479,7 +479,8 @@
         }
 
         function checkMonsterSpawn() {
-            if (!gameActive || monsters.length >= 2) return;
+            // 怪獣の同時出現数を1体に制限
+            if (!gameActive || monsters.length >= 1) return;
             
             let spawnChance = (player.noise / 100) * 0.4; 
             if (Math.random() < spawnChance) {
@@ -550,7 +551,8 @@
                 if (mn.aggro > 20) addLog("!! 巨大不明生物が発射音を検知 !!", true);
             });
             
-            if (Math.random() < 0.15 && monsters.length < 2) spawnMonster();
+            // 出現数を1体に制限
+            if (Math.random() < 0.15 && monsters.length < 1) spawnMonster();
 
             player.isReloading = true;
             player.reloadRemaining = RELOAD_TIME;
@@ -575,6 +577,9 @@
         }
 
         function spawnMonster() {
+            // 安全策としてここでもチェック
+            if (monsters.length >= 1) return;
+
             const angle = Math.random() * Math.PI * 2;
             const dist = 600 + Math.random() * 200;
             monsters.push({
@@ -604,7 +609,9 @@
             addLog("アクティブソナー送信。広域に波形が伝播。");
             
             monsters.forEach(mn => { mn.aggro += 60; });
-            if (Math.random() < 0.3 && monsters.length < 2) spawnMonster();
+            
+            // 出現数を1体に制限
+            if (Math.random() < 0.3 && monsters.length < 1) spawnMonster();
 
             const pulse = document.createElement('div');
             pulse.className = 'sonar-pulse';
@@ -743,7 +750,7 @@
                 }
                 mn.x += mn.vx; mn.y += mn.vy;
 
-                // Attack logic: 攻撃範囲を 90 -> 50 に縮小
+                // Attack logic: 攻撃範囲 50
                 if (Math.hypot(mn.x - player.x, mn.y - player.y) < 50 && Math.random() < 0.008) {
                     addLog("!! 巨大不明生物の超低周波攻撃！ !!", true);
                     applyDamage(15, true);
