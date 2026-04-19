@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sonar Strike - Tactical Deep Sea Combat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @font-face {
+            font-family: 'Courier New', Courier, monospace;
+        }
+        body {
+            background-color: #030803;
+            color: #00ff41;
+            font-family: 'Courier New', Courier, monospace;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        .game-wrapper {
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+            padding: 1rem;
+            gap: 1.5rem;
+            box-sizing: border-box;
+        }
+
+        .radar-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #1a331a;
+            background: rgba(0, 20, 0, 0.2);
+            position: relative;
+            border-radius: 8px;
+        }
+
+        .control-section {
+            width: 380px;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            border-left: 1px border-emerald-900/50;
+            padding-left: 0.5rem;
+        }
+
+        #radar-screen {
+            background: radial-gradient(circle, #0a1f0a 0%, #030803 100%);
+            border: 4px solid #1a331a;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 30px rgba(0, 255, 65, 0.1);
+            cursor: crosshair;
+            width: 90%;
+            max-width: 600px;
+            aspect-ratio: 1 / 1;
+            border-radius: 50%;
+        }
+
+        .scan-line {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 50%;
+            height: 2px;
+            background: linear-gradient(to right, rgba(0, 255, 65, 0), rgba(0, 255, 65, 0.5));
+            transform-origin: left center;
+            pointer-events: none;
+            display: none;
+            z-index: 5;
+        }
+
+        .sonar-pulse {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            border: 2px solid rgba(0, 255, 65, 0.6);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 4;
+            animation: pulse-out 1.5s ease-out forwards;
+        }
+
+        @keyframes pulse-out {
+            0% { width: 0; height: 0; opacity: 1; }
+            100% { width: 100%; height: 100%; opacity: 0; border-width: 1px; }
+        }
+
+        .blip {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background-color: #00ff41;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            opacity: 0;
+            transition: opacity 2s ease-out;
+            box-shadow: 0 0 10px #00ff41;
+            pointer-events: none;
+        }
+
+        .monster-blip {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            transform: translate(-50%, -50%);
+            opacity: 0;
+            transition: opacity 4s ease-out;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .monster-part {
+            position: absolute;
+            background: #ff1100;
+            box-shadow: 0 0 15px #ff0000;
+            filter: blur(1px);
+        }
+
+        .terrain-blip {
+            position: absolute;
+            background-color: rgba(0, 255, 65, 0.5); 
+            filter: blur(4px); 
+            transform: translate(-50%, -50%);
+            opacity: 0;
+            transition: opacity 3s ease-out;
+            pointer-events: none;
+            border-radius: 40% 60% 50% 50%;
+        }
+
+        .torpedo {
+            position: absolute;
+            width: 3px;
+            height: 10px;
+            background-color: #ffcc00;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 8px #ffcc00;
+            z-index: 15;
+        }
+
+        .submarine {
+            position: absolute;
+            width: 14px;
+            height: 20px;
+            border: 2px solid #00ff41;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 20;
+            background-color: #030803;
+            border-radius: 40% 40% 20% 20%;
+        }
+
+        .aim-line {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            height: 1px;
+            background: linear-gradient(to right, rgba(255, 204, 0, 0.1), rgba(255, 204, 0, 0.8));
+            transform-origin: left center;
+            pointer-events: none;
+            z-index: 18;
+            display: none;
+        }
+
+        .log-box {
+            background: rgba(0, 15, 0, 0.9);
+            border: 1px solid #1a331a;
+            flex-grow: 1;
+            overflow-y: auto;
+            font-size: 11px;
+            padding: 0.5rem;
+            border-radius: 4px;
+        }
+
+        .btn-action {
+            background-color: #064e3b;
+            border: 1px solid #10b981;
+            padding: 10px;
+            font-size: 11px;
+            font-weight: bold;
+            transition: all 0.2s;
+            text-transform: uppercase;
+        }
+
+        .btn-action:hover { background-color: #065f46; color: white; }
+        .btn-action:active { transform: scale(0.95); }
+
+        #noise-scope-canvas { width: 100%; height: 60px; background: #000; border-radius: 4px; }
+        
+        #damage-flash, #boundary-flash {
+            position: absolute;
+            inset: 0;
+            background: rgba(255, 0, 0, 0.3);
+            display: none;
+            z-index: 100;
+            pointer-events: none;
+        }
+
+        #monster-flash {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 100, 255, 0.2); 
+            display: none;
+            z-index: 101;
+            pointer-events: none;
+        }
+
+        .target-marker {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border: 1px solid #ffcc00;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            animation: target-ping 0.8s ease-out;
+        }
+
+        @keyframes target-ping {
+            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; border-width: 4px; }
+            100% { transform: translate(-50%, -50%) scale(2); opacity: 0; border-width: 1px; }
+        }
+        
+        .shake {
+            animation: screen-shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        @keyframes screen-shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+
+        #boundary-warning {
+            position: absolute;
+            top: 20%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff0000;
+            font-weight: bold;
+            text-align: center;
+            z-index: 150;
+            display: none;
+            text-shadow: 0 0 10px #000;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="start-screen" class="fixed inset-0 bg-black z-[200] flex flex-col items-center justify-center p-6 text-center">
+        <h1 class="text-5xl font-bold mb-4 tracking-[0.3em] text-emerald-500">SONAR STRIKE</h1>
+        <p class="text-emerald-800 text-sm mb-12 tracking-widest uppercase">タクティカル潜水艦戦闘シミュレーション</p>
+        <div class="mb-8 text-red-900 font-bold text-xs animate-pulse">!! 緊急警告: 高騒音放出は未知の巨大生物を誘引する恐れあり !!</div>
+        <button id="start-btn" class="px-12 py-4 bg-emerald-950 border border-emerald-400 text-emerald-400 font-bold tracking-[0.5em] hover:bg-emerald-400 hover:text-black transition-all">
+            システム起動
+        </button>
+    </div>
+
+    <div class="game-wrapper opacity-0 transition-opacity duration-1000" id="main-ui">
+        
+        <div class="radar-section">
+            <div id="boundary-warning">
+                <div class="text-2xl animate-bounce">WARNING: AREA LEAVING</div>
+                <div class="text-4xl" id="boundary-timer">3.0</div>
+            </div>
+
+            <div class="absolute top-4 left-4 text-[10px] text-emerald-700 tracking-tighter">
+                状況: 深海哨戒任務中<br>
+                注意: エンジン出力に比例して怪獣の出現率が上昇
+            </div>
+            
+            <div id="radar-screen">
+                <div id="damage-flash"></div>
+                <div id="boundary-flash"></div>
+                <div id="monster-flash"></div>
+                
+                <!-- 静的なレーダーグリッド -->
+                <div class="absolute inset-0 pointer-events-none opacity-20">
+                    <div class="absolute inset-0 border border-emerald-500 rounded-full m-[10%]"></div>
+                    <div class="absolute inset-0 border border-emerald-500 rounded-full m-[25%]"></div>
+                    <div class="absolute inset-0 border border-emerald-500 rounded-full m-[40%]"></div>
+                    <div class="absolute top-0 bottom-0 left-1/2 w-px bg-emerald-500"></div>
+                    <div class="absolute left-0 right-0 top-1/2 h-px bg-emerald-500"></div>
+                </div>
+
+                <!-- 作戦限界線 -->
+                <div id="boundary-circle" class="absolute border-2 border-red-600/60 rounded-full pointer-events-none border-dashed shadow-[0_0_15px_rgba(255,0,0,0.3)]"></div>
+
+                <div id="scan-line" class="scan-line"></div>
+                <div id="aim-line" class="aim-line"></div>
+                <div id="player-sprite" class="submarine"></div>
+                <div id="entities-container" class="absolute inset-0"></div>
+                <div id="fx-container" class="absolute inset-0 pointer-events-none"></div>
+            </div>
+
+            <div class="mt-4 flex flex-col items-center gap-1">
+                <div class="flex gap-8 text-[11px] text-emerald-500/60 uppercase tracking-widest">
+                    <span>作戦半径: 900m</span>
+                    <span id="monster-risk-ui" class="text-emerald-500 transition-colors">MONSTER RISK: LOW</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="control-section">
+            <div class="grid grid-cols-2 gap-2">
+                <div class="border border-emerald-900 p-3 bg-black/40 rounded">
+                    <div class="flex justify-between text-[10px] mb-1">
+                        <span>船体完全性 (HULL)</span>
+                        <span id="hull-value">100%</span>
+                    </div>
+                    <div class="w-full bg-emerald-950 h-2 rounded overflow-hidden">
+                        <div id="hull-bar" class="h-full bg-emerald-500 transition-all duration-300 w-full"></div>
+                    </div>
+                </div>
+                <div class="border border-emerald-900 p-3 bg-black/40 rounded flex flex-col justify-center items-center">
+                    <span class="text-[10px] text-emerald-700">目標撃破数</span>
+                    <span id="kill-counter" class="text-xl font-bold text-emerald-400">0/5</span>
+                </div>
+            </div>
+
+            <div class="border border-emerald-900 p-3 bg-black/40 rounded text-[11px] space-y-2">
+                <div class="grid grid-cols-2 gap-2">
+                    <div class="flex justify-between"><span>座標:</span><span id="pos-value" class="text-emerald-400">0, 0</span></div>
+                    <div class="flex justify-between"><span>針路:</span><span id="heading-value" class="text-emerald-400">000°</span></div>
+                </div>
+                <div class="pt-2 border-t border-emerald-900/30">
+                    <div class="flex justify-between mb-1"><span>騒音放出 (NOISE)</span><span id="noise-display-text">20%</span></div>
+                    <canvas id="noise-scope-canvas"></canvas>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-2">
+                <button id="steer-left-btn" class="btn-action col-span-1">左舵</button>
+                <div class="flex flex-col gap-1">
+                    <button id="speed-stop-btn" class="text-[9px] bg-red-950/20 border border-red-900/50 p-1">停止</button>
+                    <button id="speed-slow-btn" class="text-[9px] bg-emerald-950/50 border border-emerald-800 p-1">微速</button>
+                    <button id="speed-full-btn" class="text-[9px] bg-emerald-800/50 border border-emerald-500 p-1">全速</button>
+                </div>
+                <button id="steer-right-btn" class="btn-action col-span-1">右舵</button>
+            </div>
+
+            <div class="border border-red-900/30 p-3 bg-red-950/10 rounded flex flex-col gap-2">
+                <div class="flex justify-between items-center mb-1">
+                    <span class="text-[10px] text-red-500 font-bold uppercase tracking-widest">兵装システム</span>
+                    <span id="reload-timer" class="text-[9px] text-emerald-500 font-bold tracking-tighter">READY</span>
+                </div>
+                
+                <div class="flex gap-2">
+                    <button id="active-sonar-btn" class="flex-1 bg-blue-900/40 hover:bg-blue-700/60 py-3 text-xs font-bold border border-blue-400/50 text-blue-100 rounded flex items-center justify-center gap-2">
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="3"></circle></svg>
+                        アクティブソナー
+                    </button>
+                    <button id="fire-btn-ui" class="w-16 bg-red-900/70 hover:bg-red-700 py-3 text-xs font-bold border border-red-500 text-red-100 rounded">
+                        発射
+                    </button>
+                </div>
+            </div>
+
+            <div id="log" class="log-box">
+                <div class="opacity-40">-- システム初期化完了 --</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="game-over" class="fixed inset-0 bg-black/95 flex flex-col items-center justify-center z-[300] hidden p-6 text-center">
+        <h2 id="death-reason" class="text-4xl text-red-600 font-bold mb-4 uppercase">LOST</h2>
+        <p id="death-detail" class="mb-8 text-emerald-800">通信途絶...</p>
+        <button onclick="location.reload()" class="bg-emerald-900 px-12 py-4 border border-emerald-400 text-emerald-400 font-bold">リスタート</button>
+    </div>
+
+    <script>
+        // Game State
+        let player = {
+            x: 0, y: 0, angle: -Math.PI / 2,
+            speed: 0.5, noise: 20, hull: 100,
+            steerDir: 0, score: 0,
+            isReloading: false, reloadRemaining: 0,
+            lastPingTime: 0, radius: 5,
+            lastAimAngle: 0,
+            outsideTime: 0 
+        };
+
+        const RELOAD_TIME = 2500;
+        const OUTSIDE_GRACE_PERIOD = 3000;
+        let enemies = [];
+        let torpedoes = [];
+        let terrain = [];
+        let monsters = []; 
+        let gameActive = false;
+        let torpedoCounter = 0;
+
+        const CENTER = 300;
+        const MAP_LIMIT = 900;
+        const SONAR_COOLDOWN = 3000;
+        const PASSIVE_TERRAIN_RANGE = 130;
+        const ACTIVE_SONAR_RANGE = 550;
+
+        const logElement = document.getElementById('log');
+        const radarScreen = document.getElementById('radar-screen');
+        const entitiesContainer = document.getElementById('entities-container');
+        const fxContainer = document.getElementById('fx-container');
+        const scanLine = document.getElementById('scan-line');
+        const aimLine = document.getElementById('aim-line');
+        const scopeCanvas = document.getElementById('noise-scope-canvas');
+        const scopeCtx = scopeCanvas.getContext('2d');
+
+        function addLog(message, isCritical = false) {
+            const entry = document.createElement('div');
+            if (isCritical) entry.className = "text-red-500 font-bold";
+            const time = Math.random().toString(16).slice(2, 10);
+            entry.innerHTML = `<span class="opacity-30">[${time}]</span> ${message}`;
+            logElement.prepend(entry);
+            if (logElement.childNodes.length > 20) logElement.removeChild(logElement.lastChild);
+        }
+
+        function updateSpeed(speed, noise, message) {
+            player.speed = speed;
+            player.noise = noise;
+            document.getElementById('noise-display-text').textContent = noise + '%';
+            
+            // UI Risk Level
+            const riskUI = document.getElementById('monster-risk-ui');
+            if (noise > 60) {
+                riskUI.textContent = "MONSTER RISK: HIGH";
+                riskUI.className = "text-red-500 animate-pulse";
+            } else if (noise > 15) {
+                riskUI.textContent = "MONSTER RISK: MED";
+                riskUI.className = "text-yellow-500";
+            } else {
+                riskUI.textContent = "MONSTER RISK: LOW";
+                riskUI.className = "text-emerald-500";
+            }
+            
+            addLog(message);
+        }
+
+        function init() {
+            scopeCanvas.width = scopeCanvas.clientWidth;
+            scopeCanvas.height = scopeCanvas.clientHeight;
+            
+            generateTerrain();
+            for(let i=0; i<3; i++) spawnEnemy();
+
+            document.getElementById('start-btn').onclick = startGame;
+            
+            radarScreen.addEventListener('mousedown', handleRadarFire);
+            radarScreen.addEventListener('mousemove', handleRadarAim);
+            radarScreen.addEventListener('mouseleave', () => aimLine.style.display = 'none');
+
+            document.getElementById('fire-btn-ui').onclick = handleUIFire;
+
+            document.getElementById('steer-left-btn').onmousedown = () => player.steerDir = -1;
+            document.getElementById('steer-right-btn').onmousedown = () => player.steerDir = 1;
+            window.onmouseup = () => player.steerDir = 0;
+
+            document.getElementById('speed-stop-btn').onclick = () => updateSpeed(0, 5, "機関停止。");
+            document.getElementById('speed-slow-btn').onclick = () => updateSpeed(0.5, 20, "微速前進。");
+            document.getElementById('speed-full-btn').onclick = () => updateSpeed(1.2, 65, "全速前進。");
+
+            document.getElementById('active-sonar-btn').onclick = activateSonar;
+        }
+
+        function startGame() {
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('main-ui').classList.remove('opacity-0');
+            gameActive = true;
+            addLog("哨戒任務開始。騒音の出し過ぎに注意せよ。");
+            
+            requestAnimationFrame(gameLoop);
+            setInterval(passiveScan, 2000);
+            setInterval(() => { if(enemies.length < 4 && gameActive) spawnEnemy(); }, 12000);
+            setInterval(checkMonsterSpawn, 5000);
+        }
+
+        function checkMonsterSpawn() {
+            if (!gameActive || monsters.length >= 2) return;
+            
+            let spawnChance = (player.noise / 100) * 0.4; 
+            if (Math.random() < spawnChance) {
+                spawnMonster();
+            }
+        }
+
+        function handleRadarAim(e) {
+            if (!gameActive) return;
+            const rect = radarScreen.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            const dx = mouseX - rect.width / 2;
+            const dy = mouseY - rect.height / 2;
+            const targetAngle = Math.atan2(dy, dx);
+            const dist = Math.hypot(dx, dy);
+            player.lastAimAngle = targetAngle;
+            aimLine.style.display = 'block';
+            aimLine.style.width = dist + 'px';
+            aimLine.style.transform = `translateY(-50%) rotate(${targetAngle}rad)`;
+            if (player.isReloading) {
+                const progress = 1 - (player.reloadRemaining / RELOAD_TIME);
+                aimLine.style.opacity = (0.1 + progress * 0.2).toString();
+            } else {
+                aimLine.style.opacity = '1';
+            }
+        }
+
+        function handleRadarFire(e) {
+            if (!gameActive || player.isReloading) return;
+            const rect = radarScreen.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            const dx = mouseX - rect.width / 2;
+            const dy = mouseY - rect.height / 2;
+            const targetAngle = Math.atan2(dy, dx);
+            fireTorpedo(targetAngle);
+            const marker = document.createElement('div');
+            marker.className = 'target-marker';
+            marker.style.left = mouseX + 'px';
+            marker.style.top = mouseY + 'px';
+            radarScreen.appendChild(marker);
+            setTimeout(() => marker.remove(), 800);
+        }
+
+        function handleUIFire() {
+            if (!gameActive || player.isReloading) return;
+            const angle = aimLine.style.display === 'block' ? player.lastAimAngle : player.angle;
+            fireTorpedo(angle);
+            const marker = document.createElement('div');
+            marker.className = 'target-marker';
+            marker.style.left = '50%';
+            marker.style.top = '50%';
+            radarScreen.appendChild(marker);
+            setTimeout(() => marker.remove(), 800);
+        }
+
+        function fireTorpedo(angle) {
+            torpedoes.push({
+                id: 'tp-' + torpedoCounter++,
+                x: player.x, y: player.y,
+                vx: Math.cos(angle) * 4.5, vy: Math.sin(angle) * 4.5,
+                angle: angle + Math.PI/2, owner: 'player', life: 180
+            });
+            addLog("魚雷発射。発射音が響く。");
+            monsters.forEach(mn => {
+                mn.aggro += 40; 
+                if (mn.aggro > 20) addLog("!! 巨大不明生物が発射音を検知 !!", true);
+            });
+            
+            if (Math.random() < 0.15 && monsters.length < 2) spawnMonster();
+
+            player.isReloading = true;
+            player.reloadRemaining = RELOAD_TIME;
+            const timer = document.getElementById('reload-timer');
+            timer.className = "text-[9px] text-red-500 font-bold animate-pulse";
+        }
+
+        function updateReloadTimer(dt) {
+            if (!player.isReloading) return;
+            player.reloadRemaining -= dt;
+            const timer = document.getElementById('reload-timer');
+            if (player.reloadRemaining <= 0) {
+                player.isReloading = false;
+                player.reloadRemaining = 0;
+                timer.textContent = "READY";
+                timer.className = "text-[9px] text-emerald-500 font-bold";
+                aimLine.style.opacity = '1';
+            } else {
+                const sec = (player.reloadRemaining / 1000).toFixed(1);
+                timer.textContent = `RELOADING... ${sec}s`;
+            }
+        }
+
+        function spawnMonster() {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 600 + Math.random() * 200;
+            monsters.push({
+                x: player.x + Math.cos(angle) * dist,
+                y: player.y + Math.sin(angle) * dist,
+                vx: 0, vy: 0, hp: 20, 
+                isMonster: true, aggro: 20
+            });
+            addLog("!! 警告: 騒音に惹かれた巨大不明生物が出現 !!", true);
+        }
+
+        function spawnEnemy() {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 600 + Math.random() * 200;
+            enemies.push({
+                x: player.x + Math.cos(angle) * dist,
+                y: player.y + Math.sin(angle) * dist,
+                vx: (Math.random() - 0.5) * 0.6,
+                vy: (Math.random() - 0.5) * 0.6,
+                hp: 1
+            });
+        }
+
+        function activateSonar() {
+            if (Date.now() - player.lastPingTime < SONAR_COOLDOWN) return;
+            player.lastPingTime = Date.now();
+            addLog("アクティブソナー送信。広域に波形が伝播。");
+            
+            monsters.forEach(mn => { mn.aggro += 60; });
+            if (Math.random() < 0.3 && monsters.length < 2) spawnMonster();
+
+            const pulse = document.createElement('div');
+            pulse.className = 'sonar-pulse';
+            fxContainer.appendChild(pulse);
+            setTimeout(() => pulse.remove(), 1500);
+            scanLine.style.display = 'block';
+            [...enemies, ...monsters].forEach(en => {
+                const dx = en.x - player.x; const dy = en.y - player.y;
+                const dist = Math.hypot(dx, dy);
+                if (dist < ACTIVE_SONAR_RANGE) {
+                    setTimeout(() => createBlip(dx, dy, en.isMonster ? 'monster-blip' : 'blip'), dist * 2);
+                }
+            });
+            terrain.forEach(t => {
+                const dx = t.x - player.x; const dy = t.y - player.y;
+                const dist = Math.hypot(dx, dy);
+                if (dist < ACTIVE_SONAR_RANGE) {
+                    setTimeout(() => createTerrainBlip(dx, dy, t.size, 0.5), dist * 2);
+                }
+            });
+            setTimeout(() => scanLine.style.display = 'none', 1000);
+        }
+
+        function createBlip(dx, dy, className) {
+            const container = document.createElement('div');
+            container.className = className;
+            container.style.left = ((dx + CENTER) / (CENTER*2) * 100) + '%';
+            container.style.top = ((dy + CENTER) / (CENTER*2) * 100) + '%';
+            if (className === 'monster-blip') {
+                for(let i=0; i<6; i++) {
+                    const part = document.createElement('div');
+                    part.className = 'monster-part';
+                    const size = 12 + Math.random() * 20;
+                    part.style.width = size + 'px';
+                    part.style.height = size + 'px';
+                    part.style.borderRadius = Math.random() > 0.4 ? '2px' : '50%';
+                    part.style.left = (Math.random() * 30 - 15) + 'px';
+                    part.style.top = (Math.random() * 30 - 15) + 'px';
+                    part.style.opacity = (0.5 + Math.random() * 0.5).toString();
+                    container.appendChild(part);
+                }
+            }
+            entitiesContainer.appendChild(container);
+            setTimeout(() => { 
+                container.style.opacity = '1'; 
+                setTimeout(() => { 
+                    container.style.opacity = '0'; 
+                    setTimeout(() => container.remove(), 4000); 
+                }, 2500); 
+            }, 10);
+        }
+
+        function passiveScan() {
+            if (!gameActive) return;
+            terrain.forEach(t => {
+                const dx = t.x - player.x; const dy = t.y - player.y;
+                const dist = Math.hypot(dx, dy);
+                if (dist < PASSIVE_TERRAIN_RANGE) createTerrainBlip(dx, dy, t.size, 0.3);
+            });
+        }
+
+        function createTerrainBlip(dx, dy, size, maxOpacity) {
+            const blip = document.createElement('div');
+            blip.className = 'terrain-blip';
+            blip.style.width = size + 'px'; blip.style.height = size + 'px';
+            blip.style.left = ((dx + CENTER) / (CENTER*2) * 100) + '%';
+            blip.style.top = ((dy + CENTER) / (CENTER*2) * 100) + '%';
+            entitiesContainer.appendChild(blip);
+            setTimeout(() => { 
+                blip.style.opacity = maxOpacity; 
+                setTimeout(() => { blip.style.opacity = '0'; setTimeout(() => blip.remove(), 4000); }, 2500); 
+            }, 50);
+        }
+
+        function applyDamage(amount, isMonster = false) {
+            player.hull -= amount;
+            document.getElementById('hull-value').textContent = Math.max(0, player.hull) + '%';
+            document.getElementById('hull-bar').style.width = Math.max(0, player.hull) + '%';
+            const flashId = isMonster ? 'monster-flash' : 'damage-flash';
+            document.getElementById(flashId).style.display = 'block';
+            setTimeout(() => document.getElementById(flashId).style.display = 'none', 600);
+            radarScreen.classList.add('shake');
+            setTimeout(() => radarScreen.classList.remove('shake'), 500);
+            if(player.hull <= 0) gameOver("通信途絶", isMonster ? "巨大不明生物により粉砕されました..." : "敵魚雷による大ダメージ。");
+        }
+
+        let lastTime = 0;
+        function gameLoop(timestamp) {
+            if (!gameActive) return;
+            const dt = timestamp - lastTime || 0;
+            lastTime = timestamp;
+
+            updateReloadTimer(dt);
+
+            if (player.steerDir !== 0) player.angle += player.steerDir * 0.038;
+
+            player.x += Math.cos(player.angle) * player.speed;
+            player.y += Math.sin(player.angle) * player.speed;
+
+            for (let t of terrain) {
+                if (Math.hypot(player.x - t.x, player.y - t.y) < (t.size / 3) + player.radius) {
+                    gameOver("座礁", "海嶺の壁面に激突しました。");
+                    return;
+                }
+            }
+
+            const distFromOrigin = Math.hypot(player.x, player.y);
+            const warningUI = document.getElementById('boundary-warning');
+            const flashUI = document.getElementById('boundary-flash');
+            
+            if (distFromOrigin > MAP_LIMIT) {
+                player.outsideTime += dt;
+                warningUI.style.display = 'block';
+                flashUI.style.display = (Math.floor(timestamp / 200) % 2 === 0) ? 'block' : 'none';
+                const remaining = Math.max(0, (OUTSIDE_GRACE_PERIOD - player.outsideTime) / 1000);
+                document.getElementById('boundary-timer').textContent = remaining.toFixed(1);
+                if (player.outsideTime >= OUTSIDE_GRACE_PERIOD) {
+                    gameOver("任務放棄", "哨戒海域からの完全な逸脱を確認。");
+                    return;
+                }
+            } else {
+                player.outsideTime = 0;
+                warningUI.style.display = 'none';
+                flashUI.style.display = 'none';
+            }
+
+            // Monster behavior
+            monsters.forEach((mn, idx) => {
+                if (mn.aggro > 0) {
+                    const ang = Math.atan2(player.y - mn.y, player.x - mn.x);
+                    mn.vx = Math.cos(ang) * 0.55; mn.vy = Math.sin(ang) * 0.55;
+                    mn.aggro -= 0.05;
+                } else if (Math.random() < 0.005) {
+                    const rand = Math.random() * Math.PI * 2;
+                    mn.vx = Math.cos(rand) * 0.15; mn.vy = Math.sin(rand) * 0.15;
+                }
+                mn.x += mn.vx; mn.y += mn.vy;
+
+                // Attack logic: 攻撃範囲を 90 -> 50 に縮小
+                if (Math.hypot(mn.x - player.x, mn.y - player.y) < 50 && Math.random() < 0.008) {
+                    addLog("!! 巨大不明生物の超低周波攻撃！ !!", true);
+                    applyDamage(15, true);
+                }
+            });
+
+            document.getElementById('player-sprite').style.transform = `translate(-50%, -50%) rotate(${player.angle + Math.PI/2}rad)`;
+            document.getElementById('pos-value').textContent = `${Math.round(player.x)}, ${Math.round(player.y)}`;
+            document.getElementById('heading-value').textContent = `${Math.round(((player.angle + Math.PI/2) * 180 / Math.PI + 360) % 360).toString().padStart(3, '0')}°`;
+
+            const bound = document.getElementById('boundary-circle');
+            const scale = 100 / (CENTER * 2);
+            bound.style.width = (MAP_LIMIT * 2 * scale) + '%';
+            bound.style.height = (MAP_LIMIT * 2 * scale) + '%';
+            bound.style.left = ((-player.x + CENTER) * scale * 100 / 100) + '%';
+            bound.style.top = ((-player.y + CENTER) * scale * 100 / 100) + '%';
+            bound.style.transform = "translate(-50%, -50%)";
+
+            drawNoise();
+
+            for (let i = torpedoes.length - 1; i >= 0; i--) {
+                const tp = torpedoes[i];
+                tp.x += tp.vx; tp.y += tp.vy; tp.life--;
+                let el = document.getElementById(tp.id);
+                if (!el) {
+                    el = document.createElement('div');
+                    el.id = tp.id; el.className = 'torpedo';
+                    entitiesContainer.appendChild(el);
+                }
+                el.style.left = (tp.x - player.x + CENTER) / (CENTER*2) * 100 + '%';
+                el.style.top = (tp.y - player.y + CENTER) / (CENTER*2) * 100 + '%';
+                el.style.transform = `translate(-50%, -50%) rotate(${tp.angle}rad)`;
+
+                let hit = false;
+                if(tp.owner === 'player') {
+                    enemies.forEach((en, idx) => {
+                        if (Math.hypot(tp.x - en.x, tp.y - en.y) < 22) {
+                            addLog("目標撃沈。"); enemies.splice(idx, 1);
+                            player.score++;
+                            document.getElementById('kill-counter').textContent = `${player.score}/5`;
+                            hit = true;
+                        }
+                    });
+                    monsters.forEach((mn, idx) => {
+                        if (Math.hypot(tp.x - mn.x, tp.y - mn.y) < 55) {
+                            mn.hp--; mn.aggro += 40;
+                            addLog(`怪獣に命中！残HP: ${mn.hp}`); hit = true;
+                            if(mn.hp <= 0) { addLog("!! 巨大不明生物の撃破を確認 !!", true); monsters.splice(idx, 1); }
+                        }
+                    });
+                } else if (Math.hypot(tp.x - player.x, tp.y - player.y) < 15) {
+                    addLog("敵魚雷命中。船体損傷。"); applyDamage(20); hit = true;
+                }
+                if (tp.life <= 0 || hit) { if(el) el.remove(); torpedoes.splice(i, 1); }
+            }
+
+            enemies.forEach(en => {
+                en.x += en.vx; en.y += en.vy;
+                if (Math.hypot(en.x - player.x, en.y - player.y) < 320 && Math.random() < 0.006) {
+                    const ang = Math.atan2(player.y - en.y, player.x - en.x);
+                    torpedoes.push({
+                        id: 'tp-' + torpedoCounter++, x: en.x, y: en.y,
+                        vx: Math.cos(ang) * 2.5, vy: Math.sin(ang) * 2.5,
+                        angle: ang + Math.PI/2, owner: 'enemy', life: 200
+                    });
+                    addLog("!! 敵の雷撃音を検知 !!", true);
+                }
+            });
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function drawNoise() {
+            scopeCtx.fillStyle = "black";
+            scopeCtx.fillRect(0, 0, scopeCanvas.width, scopeCanvas.height);
+            scopeCtx.strokeStyle = "#00ff41";
+            scopeCtx.beginPath();
+            const step = scopeCanvas.width / 40;
+            for(let i=0; i<40; i++) {
+                const h = (player.noise / 100) * scopeCanvas.height * (0.2 + Math.random() * 0.8);
+                const x = i * step;
+                const y = scopeCanvas.height/2 + (Math.random()-0.5) * h;
+                if(i===0) scopeCtx.moveTo(x, y); else scopeCtx.lineTo(x, y);
+            }
+            scopeCtx.stroke();
+        }
+
+        function generateTerrain() {
+            for(let i=0; i<35; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const dist = 180 + Math.random() * (MAP_LIMIT - 200);
+                terrain.push({ x: Math.cos(angle) * dist, y: Math.sin(angle) * dist, size: 20 + Math.random() * 80 });
+            }
+        }
+
+        function gameOver(reason, detail) {
+            gameActive = false;
+            document.getElementById('death-reason').textContent = reason;
+            document.getElementById('death-detail').textContent = detail;
+            document.getElementById('game-over').classList.remove('hidden');
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
